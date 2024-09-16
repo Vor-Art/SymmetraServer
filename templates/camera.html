@@ -1,0 +1,42 @@
+<!doctype html>
+<html>
+<head>
+    <title>Take a Photo</title>
+</head>
+<body>
+    <h1>Take a Photo</h1>
+    <video id="video" width="640" height="480" autoplay></video><br/>
+    <button id="snap">Capture Photo</button><br/><br/>
+    <canvas id="canvas" width="640" height="480"></canvas>
+
+    <script>
+        const video = document.getElementById('video');
+
+        // Request access to the webcam
+        if (navigator.mediaDevices.getUserMedia) {
+            navigator.mediaDevices.getUserMedia({ video: true })
+                .then(stream => { video.srcObject = stream; })
+                .catch(err => { console.error("Error accessing webcam: " + err); });
+        }
+
+        const canvas = document.getElementById('canvas');
+        const context = canvas.getContext('2d');
+        const snap = document.getElementById("snap");
+
+        snap.addEventListener("click", function() {
+            context.drawImage(video, 0, 0, 640, 480);
+            const dataURL = canvas.toDataURL('image/png');
+
+            // Send the image data to the server
+            fetch('/upload_photo', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: 'image=' + encodeURIComponent(dataURL)
+            })
+            .then(response => response.text())
+            .then(data => { alert(data); })
+            .catch(error => { console.error('Error:', error); });
+        });
+    </script>
+</body>
+</html>
