@@ -2,6 +2,21 @@
 <html>
 <head>
     <title>Take a Photo</title>
+    <style>
+        /* Styles for the scrollable photo container */
+        #photo-container {
+            width: 640px;
+            height: 200px;
+            border: 1px solid #ccc;
+            overflow-x: scroll;
+            white-space: nowrap;
+            margin-top: 20px;
+        }
+        #photo-container img {
+            height: 180px;
+            margin-right: 10px;
+        }
+    </style>
 </head>
 <body>
     <h1>Take a Photo</h1>
@@ -9,8 +24,23 @@
     <button onclick="window.location.href='/new_session'">New Session</button>
     <button onclick="window.location.href='/logout'">Logout</button>
     <br/><br/>
+
     <video id="video" width="640" height="480" autoplay></video><br/>
-    <button id="snap">Capture Photo</button><br/><br/>
+
+    <button id="snap">Capture Photo</button>
+    <br/><br/>
+
+    <!-- Controls for automatic photo capture -->
+    <label for="interval">Capture every N milliseconds:</label>
+    <input type="number" id="interval" value="1000" min="100" step="100">
+    <button id="start-auto">Start Auto Capture</button>
+    <button id="stop-auto" disabled>Stop Auto Capture</button>
+    <br/><br/>
+
+    <!-- Scrollable container for displaying photos -->
+    <div id="photo-container"></div>
+
+    <!-- Hidden canvas -->
     <canvas id="canvas" width="640" height="480" style="display:none;"></canvas>
 
     <script>
@@ -25,11 +55,18 @@
 
         const canvas = document.getElementById('canvas');
         const context = canvas.getContext('2d');
-        const snap = document.getElementById("snap");
+        const snap = document.getElementById('snap');
+        const photoContainer = document.getElementById('photo-container');
+        let autoCaptureInterval = null;
 
-        snap.addEventListener("click", function() {
+        function capturePhoto() {
             context.drawImage(video, 0, 0, 640, 480);
             const dataURL = canvas.toDataURL('image/png');
+
+            // Display the photo in the container
+            const img = document.createElement('img');
+            img.src = dataURL;
+            photoContainer.appendChild(img);
 
             // Send the image data to the server
             fetch('/upload_photo', {
@@ -37,9 +74,34 @@
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                 body: 'image=' + encodeURIComponent(dataURL)
             })
-            .then(response => response.text())
-            .then(data => { alert(data); })
             .catch(error => { console.error('Error:', error); });
+        }
+
+        snap.addEventListener('click', capturePhoto);
+
+        // Automatic photo capture
+        const startAutoBtn = document.getElementById('start-auto');
+        const stopAutoBtn = document.getElementById('stop-auto');
+        const intervalInput = document.getElementById('interval');
+
+        startAutoBtn.addEventListener('click', () => {
+            const interval = parseInt(intervalInput.value);
+            if (isNaN(interval) || interval < 100) {
+                alert('Please enter a valid interval (minimum 100 milliseconds).');
+                return;
+            }
+            startAutoBtn.disabled = true;
+            stopAutoBtn.disabled = false;
+            intervalInput.disabled = true;
+
+            autoCaptureInterval = setInterval(capturePhoto, interval);
+        });
+
+        stopAutoBtn.addEventListener('click', () => {
+            clearInterval(autoCaptureInterval);
+            startAutoBtn.disabled = false;
+            stopAutoBtn.disabled = true;
+            intervalInput.disabled = false;
         });
     </script>
 </body>
