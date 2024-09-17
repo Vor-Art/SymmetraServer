@@ -1,51 +1,94 @@
-#photo-container {
-    width: 640px;
-    height: 200px;
-    border: 1px solid #ccc;
-    overflow-x: scroll;
-    white-space: nowrap;
-    margin-top: 20px;
+/* Styles for the application */
+
+body {
+    font-family: Arial, sans-serif;
+    margin: 20px;
 }
 
-#photo-container img {
-    height: 180px;
-    margin-right: 10px;
+h1, h2, h3 {
+    color: #333;
 }
 
-#video-container {
-    position: relative;
+button {
+    padding: 8px 12px;
+    margin: 5px 0;
+    cursor: pointer;
+}
+
+input[type="text"], input[type="number"], input[type="file"] {
+    padding: 6px;
+    margin: 5px 0;
 }
 
 #video {
-    border: 1px solid black;
+    border: 1px solid #ccc;
+    border-radius: 4px;
 }
 
 #controls {
     margin-top: 10px;
 }
 
-.session-photos {
+.session-photos, .previous-sessions {
     margin-top: 20px;
 }
 
-.session-photos img {
+.photo-grid {
+    display: flex;
+    flex-wrap: wrap;
+}
+
+.photo-wrapper {
+    position: relative;
+    margin: 5px;
+    cursor: pointer;
+}
+
+.photo-wrapper img {
     height: 100px;
-    margin-right: 10px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+}
+
+.photo-wrapper.selected img {
+    border: 2px solid #007BFF;
+}
+
+.photo-checkbox {
+    display: none;
+}
+
+.sessions-list .session {
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    padding: 10px;
     margin-bottom: 10px;
 }
 
-.session-photos .photo-wrapper {
-    display: inline-block;
-    position: relative;
+.session h3 {
+    margin-top: 0;
 }
 
-.photo-wrapper a.download-link {
-    position: absolute;
-    top: 5px;
-    right: 5px;
-    background-color: white;
-    padding: 2px;
-    font-size: 12px;
-    text-decoration: none;
-    border: 1px solid #ccc;
+button[type="button"] {
+    background-color: #007BFF;
+    color: white;
+    border: none;
+    border-radius: 4px;
+}
+
+button[type="button"]:hover {
+    background-color: #0056b3;
+}
+
+.delete-button {
+    background-color: #dc3545; /* Bootstrap danger color */
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 8px 12px;
+    cursor: pointer;
+}
+
+.delete-button:hover {
+    background-color: #c82333;
 }

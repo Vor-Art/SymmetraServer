@@ -1,11 +1,11 @@
 <!doctype html>
 <html>
 <head>
-    <title>Take a Photo</title>
+    <title>Photo Manager</title>
     <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-    <h1>Take a Photo</h1>
+    <h1>Photo Manager</h1>
     <p>Current Session: {{ session_name }}</p>
     <button onclick="window.location.href='/logout'">Logout</button>
     <br/><br/>
@@ -31,47 +31,57 @@
         <button id="stop-auto" disabled>Stop Auto Capture</button>
         <br/><br/>
 
-        <!-- Upload photo from local machine -->
+        <!-- Upload photos from local machine -->
         <form action="/upload_photo" method="post" enctype="multipart/form-data">
-            <input type="file" name="file" accept="image/*">
-            <button type="submit">Upload Photo</button>
+            <input type="file" name="files[]" accept="image/*" multiple>
+            <button type="submit">Upload Photos</button>
         </form>
     </div>
 
-    <!-- Scrollable container for displaying photos -->
-    <div id="photo-container"></div>
-
-    <!-- Display photos from current session -->
+    <!-- Combined container for displaying current session photos -->
     <div class="session-photos">
-        <h2>Photos in Current Session</h2>
-        {% for filename in current_photos %}
-        <div class="photo-wrapper">
-            <img src="{{ url_for('uploaded_file', username=session['username'], session_name=session_name, filename=filename) }}" alt="Photo">
-            <a href="{{ url_for('download_photo', session_name=session_name, filename=filename) }}" class="download-link">Download</a>
-        </div>
-        {% endfor %}
+        <h2>Current Session Photos</h2>
+        <form id="current-session-form" action="" method="post">
+            <div class="photo-grid">
+                {% for filename in current_photos %}
+                <div class="photo-wrapper" data-filename="{{ filename }}">
+                    <img src="{{ url_for('uploaded_file', username=session['username'], session_name=session_name, filename=filename) }}" alt="Photo">
+                    <input type="checkbox" name="selected_photos[]" value="{{ filename }}" class="photo-checkbox">
+                </div>
+                {% endfor %}
+            </div>
+            <button type="button" onclick="downloadSelectedPhotos('{{ session_name }}')">Download Selected Photos</button>
+        </form>
     </div>
 
     <!-- Display previous sessions -->
-    <div class="session-photos">
+    <div class="previous-sessions">
         <h2>Previous Sessions</h2>
-        {% for sess_name, files in sessions %}
-            {% if sess_name != session_name %}
-            <h3>{{ sess_name }}</h3>
-            {% for file in files %}
-            <div class="photo-wrapper">
-                <img src="{{ url_for('uploaded_file', username=session['username'], session_name=sess_name, filename=file) }}" alt="Photo">
-                <a href="{{ url_for('download_photo', session_name=sess_name, filename=file) }}" class="download-link">Download</a>
-                <!-- Form to add photo to current session -->
-                <form action="/add_previous_photo" method="post" style="display:inline;">
-                    <input type="hidden" name="session_name" value="{{ sess_name }}">
-                    <input type="hidden" name="filename" value="{{ file }}">
-                    <button type="submit">Add to Current Session</button>
+        <div class="sessions-list">
+            {% for sess in sessions %}
+            <div class="session">
+                <h3>{{ sess.name }}</h3>
+                <form class="session-form" action="" method="post">
+                    <div class="photo-grid">
+                        {% for filename in sess.photos %}
+                        <div class="photo-wrapper" data-filename="{{ filename }}">
+                            <img src="{{ url_for('uploaded_file', username=session['username'], session_name=sess.name, filename=filename) }}" alt="Photo">
+                            <input type="checkbox" name="selected_photos[]" value="{{ filename }}" class="photo-checkbox">
+                        </div>
+                        {% endfor %}
+                    </div>
+                    <input type="hidden" name="session_name" value="{{ sess.name }}">
+                    <button type="button" onclick="downloadSelectedPhotos('{{ sess.name }}')">Download Selected Photos</button>
+                    <button type="button" onclick="addSelectedPhotosToCurrentSession('{{ sess.name }}')">Add Selected to Current Session</button>
+                </form>
+                <!-- Add Delete Session Button -->
+                <form action="/delete_session" method="post" onsubmit="return confirm('Are you sure you want to delete this session? This action cannot be undone.');">
+                    <input type="hidden" name="session_name" value="{{ sess.name }}">
+                    <button type="submit" class="delete-button">Delete Session</button>
                 </form>
             </div>
             {% endfor %}
-            {% endif %}
-        {% endfor %}
+        </div>
     </div>
 
     <!-- Hidden canvas -->
@@ -90,7 +100,6 @@
         const canvas = document.getElementById('canvas');
         const context = canvas.getContext('2d');
         const snap = document.getElementById('snap');
-        const photoContainer = document.getElementById('photo-container');
         let autoCaptureInterval = null;
 
         function capturePhoto() {
@@ -100,7 +109,25 @@
             // Display the photo in the container
             const img = document.createElement('img');
             img.src = dataURL;
-            photoContainer.appendChild(img);
+            img.alt = 'Photo';
+
+            const photoWrapper = document.createElement('div');
+            photoWrapper.classList.add('photo-wrapper');
+            photoWrapper.dataset.filename = ''; // Since it's not saved yet
+            // photoWrapper.appendChild(img);
+            photoWrapper.insertBefore(img, photoWrapper.firstChild);
+
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.name = 'selected_photos[]';
+            checkbox.classList.add('photo-checkbox');
+            // photoWrapper.appendChild(checkbox);
+            photoWrapper.insertBefore(checkbox, photoWrapper.firstChild);
+
+            const photoGrid = document.querySelector('.session-photos .photo-grid');
+            
+            // photoGrid.appendChild(photoWrapper);
+            photoGrid.insertBefore(photoWrapper, photoGrid.firstChild);
 
             // Send the image data to the server
             fetch('/upload_photo', {
@@ -137,6 +164,65 @@
             stopAutoBtn.disabled = true;
             intervalInput.disabled = false;
         });
+
+        // Photo selection by clicking on the photo
+        document.addEventListener('click', function(e) {
+            if (e.target.tagName === 'IMG' && e.target.parentElement.classList.contains('photo-wrapper')) {
+                const checkbox = e.target.parentElement.querySelector('.photo-checkbox');
+                checkbox.checked = !checkbox.checked;
+                e.target.parentElement.classList.toggle('selected', checkbox.checked);
+            }
+        });
+
+        // Download selected photos
+        function downloadSelectedPhotos(sessionName) {
+            const form = event.target.closest('form');
+            const selectedPhotos = Array.from(form.querySelectorAll('.photo-checkbox:checked')).map(cb => cb.value);
+            if (selectedPhotos.length === 0) {
+                alert('Please select at least one photo.');
+                return;
+            }
+            const formData = new FormData();
+            selectedPhotos.forEach(photo => formData.append('selected_photos[]', photo));
+            formData.append('session_name', sessionName);
+            fetch('/download_photos', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.blob())
+            .then(blob => {
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `${sessionName}_photos.zip`;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+            })
+            .catch(error => { console.error('Error:', error); });
+        }
+
+        // Add selected photos to current session
+        function addSelectedPhotosToCurrentSession(sessionName) {
+            const form = event.target.closest('form');
+            const selectedPhotos = Array.from(form.querySelectorAll('.photo-checkbox:checked')).map(cb => cb.value);
+            if (selectedPhotos.length === 0) {
+                alert('Please select at least one photo.');
+                return;
+            }
+            const formData = new FormData();
+            selectedPhotos.forEach(photo => formData.append('selected_photos[]', photo));
+            formData.append('session_name', sessionName);
+            fetch('/add_photos_to_current_session', {
+                method: 'POST',
+                body: formData
+            })
+            .then(() => {
+                window.location.reload();
+            })
+            .catch(error => { console.error('Error:', error); });
+        }
+
     </script>
 </body>
 </html>

@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, session, send_from_directory
+from flask import Flask, render_template, request, redirect, url_for, session, send_from_directory, flash
 import os
 import base64
 import time
@@ -7,6 +7,7 @@ from datetime import timedelta
 from database import database
 import uuid
 from werkzeug.utils import secure_filename
+import shutil
 
 app = Flask(__name__)
 app.secret_key = 'your_secret_key'  # Replace with a secure random key
@@ -17,9 +18,6 @@ UPLOAD_FOLDER = 'photos'
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
-# Default user credentials
-USERNAME = 'user'
-PASSWORD = 'pass'
 
 def allowed_file(filename):
     return '.' in filename and \
@@ -87,11 +85,15 @@ def camera():
     current_photos = []
     if os.path.exists(current_session_dir):
         current_photos = os.listdir(current_session_dir)
-    # Get list of previous sessions
+    # Get list of previous sessions and their photos
     user_dir = os.path.join(UPLOAD_FOLDER, username)
     sessions = []
     if os.path.exists(user_dir):
-        sessions = [(d, os.listdir(os.path.join(user_dir, d))) for d in os.listdir(user_dir)]
+        for sess_name in os.listdir(user_dir):
+            if sess_name != session_name:
+                sess_dir = os.path.join(user_dir, sess_name)
+                photos = os.listdir(sess_dir)
+                sessions.append({'name': sess_name, 'photos': photos})
     return render_template('camera.html', session_id=session_id, session_name=session_name, current_photos=current_photos, sessions=sessions)
 
 @app.route('/upload_photo', methods=['POST'])
@@ -116,53 +118,77 @@ def upload_photo():
         with open(filepath, 'wb') as f:
             f.write(data)
         return 'Photo saved successfully'
-    elif 'file' in request.files:
-        # Handle uploaded file
-        file = request.files['file']
-        if file and allowed_file(file.filename):
-            username = session['username']
-            session_name = session['photo_session_name']
-            directory = os.path.join(UPLOAD_FOLDER, username, session_name)
-            if not os.path.exists(directory):
-                os.makedirs(directory)
-            filename = secure_filename(file.filename)
-            filepath = os.path.join(directory, filename)
-            file.save(filepath)
-            return redirect(url_for('camera'))
-        else:
-            return 'Invalid file type'
+    elif 'files[]' in request.files:
+        # Handle batch file uploads
+        files = request.files.getlist('files[]')
+        username = session['username']
+        session_name = session['photo_session_name']
+        directory = os.path.join(UPLOAD_FOLDER, username, session_name)
+        if not os.path.exists(directory):
+            os.makedirs(directory)
+        for file in files:
+            if file and allowed_file(file.filename):
+                filename = secure_filename(file.filename)
+                filepath = os.path.join(directory, filename)
+                file.save(filepath)
+        return redirect(url_for('camera'))
     return 'No image data received'
 
-@app.route('/download_photo/<session_name>/<filename>')
+@app.route('/download_photos', methods=['POST'])
 @login_required
-def download_photo(session_name, filename):
+def download_photos():
+    selected_photos = request.form.getlist('selected_photos[]')
+    session_name = request.form.get('session_name')
     username = session['username']
     directory = os.path.join(UPLOAD_FOLDER, username, session_name)
-    return send_from_directory(directory, filename, as_attachment=True)
+    # Create a ZIP file of the selected photos
+    if selected_photos:
+        zip_filename = f"{session_name}_photos.zip"
+        zip_filepath = os.path.join('temp', zip_filename)
+        os.makedirs('temp', exist_ok=True)
+        import zipfile
+        with zipfile.ZipFile(zip_filepath, 'w') as zipf:
+            for filename in selected_photos:
+                file_path = os.path.join(directory, filename)
+                zipf.write(file_path, arcname=filename)
+        return send_from_directory('temp', zip_filename, as_attachment=True)
+    return redirect(url_for('camera'))
+
+@app.route('/add_photos_to_current_session', methods=['POST'])
+@login_required
+def add_photos_to_current_session():
+    selected_photos = request.form.getlist('selected_photos[]')
+    source_session_name = request.form.get('session_name')
+    username = session['username']
+    current_session_name = session['photo_session_name']
+    source_directory = os.path.join(UPLOAD_FOLDER, username, source_session_name)
+    target_directory = os.path.join(UPLOAD_FOLDER, username, current_session_name)
+    if not os.path.exists(target_directory):
+        os.makedirs(target_directory)
+    for filename in selected_photos:
+        source_path = os.path.join(source_directory, filename)
+        target_path = os.path.join(target_directory, filename)
+        if os.path.exists(source_path):
+            shutil.copy(source_path, target_path)
+    return redirect(url_for('camera'))
+
+@app.route('/delete_session', methods=['POST'])
+@login_required
+def delete_session():
+    session_name = request.form.get('session_name')
+    username = session['username']
+    directory = os.path.join(UPLOAD_FOLDER, username, session_name)
+    if os.path.exists(directory):
+        shutil.rmtree(directory)
+        # Optionally, remove the session from the list
+        # You may also want to add a flash message to confirm deletion
+    return redirect(url_for('camera'))
 
 @app.route('/uploads/<username>/<session_name>/<filename>')
 @login_required
 def uploaded_file(username, session_name, filename):
     directory = os.path.join(UPLOAD_FOLDER, username, session_name)
     return send_from_directory(directory, filename)
-
-@app.route('/add_previous_photo', methods=['POST'])
-@login_required
-def add_previous_photo():
-    current_session_name = session['photo_session_name']
-    username = session['username']
-    source_session_name = request.form['session_name']
-    filename = request.form['filename']
-    source_directory = os.path.join(UPLOAD_FOLDER, username, source_session_name)
-    target_directory = os.path.join(UPLOAD_FOLDER, username, current_session_name)
-    if not os.path.exists(target_directory):
-        os.makedirs(target_directory)
-    source_path = os.path.join(source_directory, filename)
-    target_path = os.path.join(target_directory, filename)
-    if os.path.exists(source_path):
-        import shutil
-        shutil.copy(source_path, target_path)
-    return redirect(url_for('camera'))
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', ssl_context=('cert.pem', 'key.pem'))
