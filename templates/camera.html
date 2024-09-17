@@ -114,20 +114,16 @@
             const photoWrapper = document.createElement('div');
             photoWrapper.classList.add('photo-wrapper');
             photoWrapper.dataset.filename = ''; // Since it's not saved yet
-            // photoWrapper.appendChild(img);
-            photoWrapper.insertBefore(img, photoWrapper.firstChild);
+            photoWrapper.appendChild(img);
 
             const checkbox = document.createElement('input');
             checkbox.type = 'checkbox';
             checkbox.name = 'selected_photos[]';
             checkbox.classList.add('photo-checkbox');
-            // photoWrapper.appendChild(checkbox);
-            photoWrapper.insertBefore(checkbox, photoWrapper.firstChild);
+            photoWrapper.appendChild(checkbox);
 
             const photoGrid = document.querySelector('.session-photos .photo-grid');
-            
-            // photoGrid.appendChild(photoWrapper);
-            photoGrid.insertBefore(photoWrapper, photoGrid.firstChild);
+            photoGrid.appendChild(photoWrapper);
 
             // Send the image data to the server
             fetch('/upload_photo', {
@@ -135,7 +131,21 @@
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                 body: 'image=' + encodeURIComponent(dataURL)
             })
-            .catch(error => { console.error('Error:', error); });
+            .then(response => response.text())
+            .then(data => {
+                if (data !== 'Photo saved successfully') {
+                    console.error('Server error:', data);
+                    // Optionally, remove the photo from the UI or indicate an error
+                    // photoGrid.removeChild(photoWrapper);
+                    alert('Failed to save photo on server.');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                // Handle network errors
+                photoGrid.removeChild(photoWrapper);
+                alert('Network error occurred while saving the photo.');
+            });
         }
 
         snap.addEventListener('click', capturePhoto);

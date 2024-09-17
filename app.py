@@ -3,9 +3,8 @@ import os
 import base64
 import time
 from functools import wraps
-from datetime import timedelta
+from datetime import timedelta, datetime
 from database import database
-import uuid
 from werkzeug.utils import secure_filename
 import shutil
 
@@ -44,9 +43,14 @@ def login():
             session['logged_in'] = True
             session['username'] = username
             # Initialize a new photo session
-            session_id = str(uuid.uuid4())[:8]
-            session['photo_session_id'] = session_id
-            session['photo_session_name'] = 'Session_' + session_id
+            session_date = datetime.now().strftime('%Y%m%d_%H%M%S')
+            session['photo_session_date'] = session_date
+            session_name = request.form.get('session_name', '')
+            if not session_name:
+                session_name = f"Session_{session_date}"
+            else:
+                session_name = f"{session_name}_{session_date}"
+            session['photo_session_name'] = session_name
             return redirect(url_for('camera'))
         else:
             return 'Invalid credentials'
@@ -63,13 +67,13 @@ def logout():
 def new_session():
     if request.method == 'POST':
         # Start a new photo session with a name
-        session_id = str(uuid.uuid4())[:8]
+        session_date = datetime.now().strftime('%Y%m%d_%H%M%S')
         session_name = request.form['session_name']
         if not session_name:
-            session_name = 'Session_' + session_id
+            session_name = f"Session_{session_date}"
         else:
-            session_name = f"{session_name}_{session_id}"
-        session['photo_session_id'] = session_id
+            session_name = f"{session_name}_{session_date}"
+        session['photo_session_date'] = session_date
         session['photo_session_name'] = session_name
         return redirect(url_for('camera'))
     return render_template('new_session.html')
@@ -78,7 +82,6 @@ def new_session():
 @login_required
 def camera():
     username = session['username']
-    session_id = session['photo_session_id']
     session_name = session['photo_session_name']
     # Get list of photos from current session
     current_session_dir = os.path.join(UPLOAD_FOLDER, username, session_name)
@@ -94,7 +97,7 @@ def camera():
                 sess_dir = os.path.join(user_dir, sess_name)
                 photos = os.listdir(sess_dir)
                 sessions.append({'name': sess_name, 'photos': photos})
-    return render_template('camera.html', session_id=session_id, session_name=session_name, current_photos=current_photos, sessions=sessions)
+    return render_template('camera.html', session_name=session_name, current_photos=current_photos, sessions=sessions)
 
 @app.route('/upload_photo', methods=['POST'])
 @login_required
@@ -112,7 +115,8 @@ def upload_photo():
         if not os.path.exists(directory):
             os.makedirs(directory)
 
-        filename = f'{int(time.time())}.png'
+        # Updated filename generation with microseconds
+        filename = f'{datetime.now().strftime("%Y%m%d_%H%M%S_%f")}.png'
         filepath = os.path.join(directory, filename)
 
         with open(filepath, 'wb') as f:

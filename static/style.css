@@ -46,12 +46,12 @@ input[type="text"], input[type="number"], input[type="file"] {
 
 .photo-wrapper img {
     height: 100px;
-    border: 1px solid #ccc;
+    border: 3px solid #ccc;
     border-radius: 4px;
 }
 
 .photo-wrapper.selected img {
-    border: 2px solid #007BFF;
+    border: 3px solid #007BFF;
 }
 
 .photo-checkbox {
