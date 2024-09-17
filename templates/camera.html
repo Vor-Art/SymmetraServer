@@ -5,9 +5,13 @@
 </head>
 <body>
     <h1>Take a Photo</h1>
+    <p>Current Session ID: {{ session_id }}</p>
+    <button onclick="window.location.href='/new_session'">New Session</button>
+    <button onclick="window.location.href='/logout'">Logout</button>
+    <br/><br/>
     <video id="video" width="640" height="480" autoplay></video><br/>
     <button id="snap">Capture Photo</button><br/><br/>
-    <canvas id="canvas" width="640" height="480"></canvas>
+    <canvas id="canvas" width="640" height="480" style="display:none;"></canvas>
 
     <script>
         const video = document.getElementById('video');
