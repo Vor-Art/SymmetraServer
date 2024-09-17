@@ -2,43 +2,77 @@
 <html>
 <head>
     <title>Take a Photo</title>
-    <style>
-        /* Styles for the scrollable photo container */
-        #photo-container {
-            width: 640px;
-            height: 200px;
-            border: 1px solid #ccc;
-            overflow-x: scroll;
-            white-space: nowrap;
-            margin-top: 20px;
-        }
-        #photo-container img {
-            height: 180px;
-            margin-right: 10px;
-        }
-    </style>
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
     <h1>Take a Photo</h1>
-    <p>Current Session ID: {{ session_id }}</p>
-    <button onclick="window.location.href='/new_session'">New Session</button>
+    <p>Current Session: {{ session_name }}</p>
     <button onclick="window.location.href='/logout'">Logout</button>
     <br/><br/>
 
-    <video id="video" width="640" height="480" autoplay></video><br/>
+    <form action="/new_session" method="post">
+        <input type="text" name="session_name" placeholder="Session Name">
+        <button type="submit">New Session</button>
+    </form>
+    <br/>
 
-    <button id="snap">Capture Photo</button>
-    <br/><br/>
+    <div id="video-container">
+        <video id="video" width="640" height="480" autoplay></video><br/>
+    </div>
 
-    <!-- Controls for automatic photo capture -->
-    <label for="interval">Capture every N milliseconds:</label>
-    <input type="number" id="interval" value="1000" min="100" step="100">
-    <button id="start-auto">Start Auto Capture</button>
-    <button id="stop-auto" disabled>Stop Auto Capture</button>
-    <br/><br/>
+    <div id="controls">
+        <button id="snap">Capture Photo</button>
+        <br/><br/>
+
+        <!-- Controls for automatic photo capture -->
+        <label for="interval">Capture every N milliseconds:</label>
+        <input type="number" id="interval" value="1000" min="100" step="100">
+        <button id="start-auto">Start Auto Capture</button>
+        <button id="stop-auto" disabled>Stop Auto Capture</button>
+        <br/><br/>
+
+        <!-- Upload photo from local machine -->
+        <form action="/upload_photo" method="post" enctype="multipart/form-data">
+            <input type="file" name="file" accept="image/*">
+            <button type="submit">Upload Photo</button>
+        </form>
+    </div>
 
     <!-- Scrollable container for displaying photos -->
     <div id="photo-container"></div>
+
+    <!-- Display photos from current session -->
+    <div class="session-photos">
+        <h2>Photos in Current Session</h2>
+        {% for filename in current_photos %}
+        <div class="photo-wrapper">
+            <img src="{{ url_for('uploaded_file', username=session['username'], session_name=session_name, filename=filename) }}" alt="Photo">
+            <a href="{{ url_for('download_photo', session_name=session_name, filename=filename) }}" class="download-link">Download</a>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Display previous sessions -->
+    <div class="session-photos">
+        <h2>Previous Sessions</h2>
+        {% for sess_name, files in sessions %}
+            {% if sess_name != session_name %}
+            <h3>{{ sess_name }}</h3>
+            {% for file in files %}
+            <div class="photo-wrapper">
+                <img src="{{ url_for('uploaded_file', username=session['username'], session_name=sess_name, filename=file) }}" alt="Photo">
+                <a href="{{ url_for('download_photo', session_name=sess_name, filename=file) }}" class="download-link">Download</a>
+                <!-- Form to add photo to current session -->
+                <form action="/add_previous_photo" method="post" style="display:inline;">
+                    <input type="hidden" name="session_name" value="{{ sess_name }}">
+                    <input type="hidden" name="filename" value="{{ file }}">
+                    <button type="submit">Add to Current Session</button>
+                </form>
+            </div>
+            {% endfor %}
+            {% endif %}
+        {% endfor %}
+    </div>
 
     <!-- Hidden canvas -->
     <canvas id="canvas" width="640" height="480" style="display:none;"></canvas>

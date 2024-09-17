@@ -1,0 +1,51 @@
+#photo-container {
+    width: 640px;
+    height: 200px;
+    border: 1px solid #ccc;
+    overflow-x: scroll;
+    white-space: nowrap;
+    margin-top: 20px;
+}
+
+#photo-container img {
+    height: 180px;
+    margin-right: 10px;
+}
+
+#video-container {
+    position: relative;
+}
+
+#video {
+    border: 1px solid black;
+}
+
+#controls {
+    margin-top: 10px;
+}
+
+.session-photos {
+    margin-top: 20px;
+}
+
+.session-photos img {
+    height: 100px;
+    margin-right: 10px;
+    margin-bottom: 10px;
+}
+
+.session-photos .photo-wrapper {
+    display: inline-block;
+    position: relative;
+}
+
+.photo-wrapper a.download-link {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    background-color: white;
+    padding: 2px;
+    font-size: 12px;
+    text-decoration: none;
+    border: 1px solid #ccc;
+}
