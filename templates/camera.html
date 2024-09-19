@@ -38,6 +38,13 @@
         </form>
     </div>
 
+    <!-- IMU Recording Controls -->
+    <div id="imu-controls">
+        <button id="start-imu">Start IMU Recording</button>
+        <button id="stop-imu" disabled>Stop IMU Recording</button>
+    </div>
+    <br/><br/>
+
     <!-- Combined container for displaying current session photos -->
     <div class="session-photos">
         <h2>Current Session Photos</h2>
@@ -135,14 +142,11 @@
             .then(data => {
                 if (data !== 'Photo saved successfully') {
                     console.error('Server error:', data);
-                    // Optionally, remove the photo from the UI or indicate an error
-                    // photoGrid.removeChild(photoWrapper);
                     alert('Failed to save photo on server.');
                 }
             })
             .catch(error => {
                 console.error('Error:', error);
-                // Handle network errors
                 photoGrid.removeChild(photoWrapper);
                 alert('Network error occurred while saving the photo.');
             });
@@ -233,6 +237,100 @@
             .catch(error => { console.error('Error:', error); });
         }
 
+        // IMU Recording
+        const startImuBtn = document.getElementById('start-imu');
+        const stopImuBtn = document.getElementById('stop-imu');
+
+        let imuData = [];
+        let imuRecording = false;
+
+        startImuBtn.addEventListener('click', () => {
+            // Request permission if necessary
+            if (typeof(DeviceMotionEvent) !== 'undefined' && typeof(DeviceMotionEvent.requestPermission) === 'function') {
+                DeviceMotionEvent.requestPermission()
+                    .then(response => {
+                        if (response == 'granted') {
+                            startImuRecording();
+                        } else {
+                            alert('Permission to access motion sensors denied.');
+                        }
+                    })
+                    .catch(console.error);
+            } else {
+                startImuRecording();
+            }
+        });
+
+        function startImuRecording() {
+            imuData = [];  // Reset data
+            imuRecording = true;
+            startImuBtn.disabled = true;
+            stopImuBtn.disabled = false;
+
+            window.addEventListener('devicemotion', handleMotionEvent);
+            window.addEventListener('deviceorientation', handleOrientationEvent);
+        }
+
+        function stopImuRecording() {
+            imuRecording = false;
+            startImuBtn.disabled = false;
+            stopImuBtn.disabled = true;
+
+            window.removeEventListener('devicemotion', handleMotionEvent);
+            window.removeEventListener('deviceorientation', handleOrientationEvent);
+
+            // Send data to server
+            uploadImuData();
+        }
+
+        stopImuBtn.addEventListener('click', stopImuRecording);
+
+        function handleMotionEvent(event) {
+            if (!imuRecording) return;
+            const timestamp = Date.now();
+
+            const acceleration = event.acceleration;
+            const accelerationIncludingGravity = event.accelerationIncludingGravity;
+            const rotationRate = event.rotationRate;
+
+            imuData.push({
+                timestamp,
+                acceleration,
+                accelerationIncludingGravity,
+                rotationRate,
+            });
+        }
+
+        function handleOrientationEvent(event) {
+            if (!imuRecording) return;
+            const timestamp = Date.now();
+
+            const alpha = event.alpha;
+            const beta = event.beta;
+            const gamma = event.gamma;
+
+            imuData.push({
+                timestamp,
+                orientation: { alpha, beta, gamma },
+            });
+        }
+
+        function uploadImuData() {
+            fetch('/upload_imu_data', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ data: imuData })
+            })
+            .then(response => response.text())
+            .then(data => {
+                console.log('IMU data upload response:', data);
+                alert('IMU data uploaded successfully.');
+            })
+            .catch(error => {
+                console.error('Error uploading IMU data:', error);
+                alert('Failed to upload IMU data.');
+            });
+        }
     </script>
 </body>
 </html>

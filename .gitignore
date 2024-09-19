@@ -2,3 +2,4 @@ photos/
 __pycache__/
 temp/
 static/bootstrap.min.css
+imu_data/

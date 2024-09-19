@@ -8,6 +8,8 @@ from database import database
 from werkzeug.utils import secure_filename
 import shutil
 
+from sfmt import MockSFMT  # Import the mock SFMT class
+
 app = Flask(__name__)
 app.secret_key = 'your_secret_key'  # Replace with a secure random key
 app.permanent_session_lifetime = timedelta(minutes=30)
@@ -184,8 +186,6 @@ def delete_session():
     directory = os.path.join(UPLOAD_FOLDER, username, session_name)
     if os.path.exists(directory):
         shutil.rmtree(directory)
-        # Optionally, remove the session from the list
-        # You may also want to add a flash message to confirm deletion
     return redirect(url_for('camera'))
 
 @app.route('/uploads/<username>/<session_name>/<filename>')
@@ -193,6 +193,33 @@ def delete_session():
 def uploaded_file(username, session_name, filename):
     directory = os.path.join(UPLOAD_FOLDER, username, session_name)
     return send_from_directory(directory, filename)
+
+# New route to handle IMU data upload
+@app.route('/upload_imu_data', methods=['POST'])
+@login_required
+def upload_imu_data():
+    data = request.get_json()
+    imu_data = data.get('data')
+
+    username = session['username']
+    session_name = session['photo_session_name']
+    directory = os.path.join('imu_data', username, session_name)
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+
+    # Save the data to a file
+    filename = f'imu_data_{datetime.now().strftime("%Y%m%d_%H%M%S_%f")}.json'
+    filepath = os.path.join(directory, filename)
+
+    with open(filepath, 'w') as f:
+        import json
+        json.dump(imu_data, f)
+
+    # Optionally, process with mock SFMT class
+    sftm = MockSFMT()
+    sftm.process_imu_data(imu_data)
+
+    return 'IMU data saved successfully'
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', ssl_context=('cert.pem', 'key.pem'))
