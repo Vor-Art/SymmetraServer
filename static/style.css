@@ -92,3 +92,36 @@ button[type="button"]:hover {
 .delete-button:hover {
     background-color: #c82333;
 }
+
+.large-button {
+    height: 80px; /* Adjust the height as needed */
+    padding: 15px 20px; /* Increase padding for larger buttons */
+    font-size: 1.25rem; /* Larger font size */
+    border-radius: 8px; /* Optional: Rounded corners */
+}
+
+.button-container {
+    position: relative;
+    height: 80px; /* Match the button height */
+}
+
+.button-container button {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+}
+
+/* Example: Adjust button size for screens smaller than 576px */
+@media (max-width: 575.98px) {
+    .large-button {
+        height: 50px;
+        padding: 10px 15px;
+        font-size: 1rem;
+    }
+
+    .button-container {
+        height: 50px;
+    }
+}
