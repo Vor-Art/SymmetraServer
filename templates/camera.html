@@ -24,29 +24,52 @@
             </form>
         </div>
 
-        <!-- Video and Controls -->
+        <!-- Camera Selection and Session Controls -->
         <div class="row">
+            <!-- Video Display Column -->
             <div class="col-md-6">
                 <div id="video-container" class="mb-3">
-                    <video id="video" width="100%" autoplay></video>
-                    <!-- <video id="video" width="640" height="480" autoplay></video><br/> -->
+                    <video id="video" width="100%" autoplay playsinline></video>
                 </div>
             </div>
-            <div class="col-md-6">
-                <!-- Unified Session Controls -->
-                <div id="session-controls" class="mb-3">
-                    <label for="interval">Capture every N milliseconds:</label>
-                    <input type="number" id="interval" value="1000" min="100" step="100">
 
-                    <div class="button-container position-relative">
+            <!-- Controls Column -->
+            <div class="col-md-6">
+                <!-- Camera Selection and Quality Settings -->
+                <div class="camera-controls">
+                    <h4>Select Camera and Quality</h4>
+                    <label for="cameraSelect">Choose Camera:</label>
+                    <select id="cameraSelect" class="form-control">
+                        <option value="">Loading cameras...</option>
+                    </select>
+
+                    <label for="qualitySelect" class="mt-2">Choose Quality:</label>
+                    <select id="qualitySelect" class="form-control">
+                        <option value="">Select a camera first</option>
+                    </select>
+
+                    <button id="startCameraButton" class="btn btn-success btn-block mt-3">Start Camera</button>
+                    <button id="stopCameraButton" class="btn btn-danger btn-block mt-2" disabled>Stop Camera</button>
+                </div>
+
+                <hr>
+
+                <!-- Session Controls -->
+                <div id="session-controls" class="mb-3">
+                    <h4>Session Controls</h4>
+                    <label for="interval">Capture every N milliseconds:</label>
+                    <input type="number" id="interval" value="1000" min="100" step="100" class="form-control">
+
+                    <div class="button-container position-relative my-2">
                         <button id="start-session" class="btn btn-success btn-block position-absolute w-100 large-button" style="top: 0; left: 0;">Start Session</button>
-                        <button id="pause-session" class="btn btn-danger  btn-block position-absolute w-100 large-button" style="top: 0; left: 0; display: none;">Pause Session</button>
+                        <button id="pause-session" class="btn btn-danger btn-block position-absolute w-100 large-button" style="top: 0; left: 0; display: none;">Pause Session</button>
                     </div>
                 </div>
-                <!-- Upload photos from local machine -->
+
+                <!-- Upload Photos from Local Machine -->
                 <form action="/upload_photo" method="post" enctype="multipart/form-data" class="mb-3">
                     <div class="custom-file">
-                        <input type="file" name="files[]" accept="image/*" multiple class="custom-file-input" id="fileUpload">
+                        <input type="file" name="files[]" accept="image/*" multiple class="custom-file-input" id="fileUpload" required>
                         <label class="custom-file-label" for="fileUpload">Choose photos to upload</label>
                     </div>
                     <button type="submit" class="btn btn-secondary btn-block mt-2">Upload Photos</button>
@@ -66,11 +89,11 @@
                     </div>
                     {% endfor %}
                 </div>
-                <button type="button" class="btn btn-info" onclick="downloadSelectedPhotos('{{ session_name }}')">Download Selected Photos</button>
+                <button type="button" class="btn btn-info mt-3" onclick="downloadSelectedPhotos('{{ session_name }}')">Download Selected Photos</button>
             </form>
         </div>
 
-        <!-- Hidden canvas -->
+        <!-- Hidden canvas for capturing photos -->
         <canvas id="canvas" width="640" height="480" style="display:none;"></canvas>
     </div>
 
@@ -78,35 +101,166 @@
     <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
 
     <script>
+        // Camera Selection and Quality Variables
+        const cameraSelect = document.getElementById('cameraSelect');
+        const qualitySelect = document.getElementById('qualitySelect');
+        const startCameraButton = document.getElementById('startCameraButton');
+        const stopCameraButton = document.getElementById('stopCameraButton');
         const video = document.getElementById('video');
+        let currentStream = null;
 
-        // Request access to the webcam
-        if (navigator.mediaDevices.getUserMedia) {
-            navigator.mediaDevices.getUserMedia({ video: true })
-                .then(stream => { video.srcObject = stream; })
-                .catch(err => { console.error("Error accessing webcam: " + err); });
+        // Common resolutions
+        const resolutions = [
+            { label: '480p', width: 640, height: 480 },
+            { label: '720p', width: 1280, height: 720 },
+            { label: '1080p', width: 1920, height: 1080 },
+            { label: '4K', width: 3840, height: 2160 }
+        ];
+
+        // Initialize the application
+        async function initCameraSelection() {
+            try {
+                // Request camera permissions to ensure device labels are available
+                await navigator.mediaDevices.getUserMedia({ video: true });
+                await getCameras();
+            } catch (err) {
+                console.error('Error accessing camera:', err);
+                alert('Camera access is required to use this application.');
+                cameraSelect.innerHTML = '<option value="">Camera access denied</option>';
+                qualitySelect.innerHTML = '<option value="">Cannot select quality without camera access</option>';
+            }
         }
 
-        const canvas = document.getElementById('canvas');
-        const context = canvas.getContext('2d');
+        // Populate camera list
+        async function getCameras() {
+            try {
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                const videoDevices = devices.filter(device => device.kind === 'videoinput');
+                
+                cameraSelect.innerHTML = '';
+                videoDevices.forEach((device, index) => {
+                    const option = document.createElement('option');
+                    option.value = device.deviceId;
+                    option.text = device.label || `Camera ${index + 1}`;
+                    cameraSelect.appendChild(option);
+                });
 
-        // Unified Session Control Buttons
+                if (videoDevices.length === 0) {
+                    cameraSelect.innerHTML = '<option value="">No cameras found</option>';
+                    qualitySelect.innerHTML = '<option value="">No cameras available</option>';
+                } else if (videoDevices.length === 1) {
+                    // If only one camera, select it automatically and populate quality
+                    cameraSelect.selectedIndex = 0;
+                    populateQualitySelect(videoDevices[0].deviceId);
+                } else {
+                    // Multiple cameras: prompt user to select
+                    qualitySelect.innerHTML = '<option value="">Select a camera first</option>';
+                }
+            } catch (err) {
+                console.error('Error enumerating devices:', err);
+                cameraSelect.innerHTML = '<option value="">Error accessing cameras</option>';
+                qualitySelect.innerHTML = '<option value="">Cannot select quality</option>';
+            }
+        }
+
+        // Populate quality list based on selected camera
+        cameraSelect.addEventListener('change', () => {
+            const selectedCamera = cameraSelect.value;
+            if (!selectedCamera) {
+                qualitySelect.innerHTML = '<option value="">Select a camera first</option>';
+                return;
+            }
+
+            populateQualitySelect(selectedCamera);
+        });
+
+        // Function to populate quality select
+        function populateQualitySelect(selectedCamera) {
+            qualitySelect.innerHTML = '';
+            resolutions.forEach(res => {
+                const option = document.createElement('option');
+                option.value = JSON.stringify({ width: res.width, height: res.height });
+                option.text = res.label;
+                qualitySelect.appendChild(option);
+            });
+        }
+
+        // Start Camera with selected settings
+        startCameraButton.addEventListener('click', async () => {
+            if (currentStream) {
+                stopStream();
+            }
+
+            const selectedCamera = cameraSelect.value;
+            const selectedQuality = qualitySelect.value;
+
+            if (!selectedCamera) {
+                alert('Please select a camera.');
+                return;
+            }
+
+            let constraints = {
+                video: {
+                    deviceId: { exact: selectedCamera }
+                }
+            };
+
+            if (selectedQuality) {
+                const quality = JSON.parse(selectedQuality);
+                constraints.video.width = { exact: quality.width };
+                constraints.video.height = { exact: quality.height };
+            }
+
+            try {
+                currentStream = await navigator.mediaDevices.getUserMedia(constraints);
+                video.srcObject = currentStream;
+                stopCameraButton.disabled = false;
+                startCameraButton.disabled = true;
+            } catch (err) {
+                console.error('Error accessing camera:', err);
+                alert('Could not access the camera with the selected settings.');
+            }
+        });
+
+        // Stop the Camera
+        stopCameraButton.addEventListener('click', () => {
+            stopStream();
+        });
+
+        function stopStream() {
+            if (currentStream) {
+                currentStream.getTracks().forEach(track => track.stop());
+                video.srcObject = null;
+                currentStream = null;
+                stopCameraButton.disabled = true;
+                startCameraButton.disabled = false;
+            }
+        }
+
+        // Refresh camera list when devices change
+        navigator.mediaDevices.addEventListener('devicechange', getCameras);
+
+        // Initialize camera selection on page load
+        window.onload = initCameraSelection;
+
+        // Session Controls Variables
         const startSessionBtn = document.getElementById('start-session');
         const pauseSessionBtn = document.getElementById('pause-session');
-
+        const canvas = document.getElementById('canvas');
+        const context = canvas.getContext('2d');
         let autoCaptureInterval = null;
 
         startSessionBtn.addEventListener('click', () => {
             startAutoCapture();
-            toggleButtons(true);
+            toggleSessionButtons(true);
         });
 
         pauseSessionBtn.addEventListener('click', () => {
             stopAutoCapture();
-            toggleButtons(false);
+            toggleSessionButtons(false);
         });
 
-        function toggleButtons(isSessionStarted) {
+        function toggleSessionButtons(isSessionStarted) {
             if (isSessionStarted) {
                 startSessionBtn.style.display = 'none';
                 pauseSessionBtn.style.display = 'block';
@@ -130,8 +284,14 @@
             clearInterval(autoCaptureInterval);
         }
 
+        async function capturePhoto() {
+            if (!currentStream) {
+                alert('Camera is not started. Please start the camera first.');
+                stopAutoCapture();
+                toggleSessionButtons(false);
+                return;
+            }
 
-        function capturePhoto() {
             context.drawImage(video, 0, 0, canvas.width, canvas.height);
             const dataURL = canvas.toDataURL('image/png');
 
@@ -143,38 +303,35 @@
             const photoWrapper = document.createElement('div');
             photoWrapper.classList.add('photo-wrapper');
             photoWrapper.dataset.filename = ''; // Since it's not saved yet
-            // photoWrapper.appendChild(img);
-            photoWrapper.insertBefore(img, photoWrapper.firstChild);
+            photoWrapper.appendChild(img);
 
             const checkbox = document.createElement('input');
             checkbox.type = 'checkbox';
             checkbox.name = 'selected_photos[]';
             checkbox.classList.add('photo-checkbox');
-            // photoWrapper.appendChild(checkbox);
-            photoWrapper.insertBefore(checkbox, photoWrapper.firstChild);
+            photoWrapper.appendChild(checkbox);
 
             const photoGrid = document.querySelector('.session-photos .photo-grid');
-            // photoGrid.appendChild(photoWrapper);
             photoGrid.insertBefore(photoWrapper, photoGrid.firstChild);
 
             // Send the image data to the server
-            fetch('/upload_photo', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: 'image=' + encodeURIComponent(dataURL)
-            })
-            .then(response => response.text())
-            .then(data => {
-                if (data !== 'Photo saved successfully') {
-                    console.error('Server error:', data);
+            try {
+                const response = await fetch('/upload_photo', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: 'image=' + encodeURIComponent(dataURL)
+                });
+                const result = await response.text();
+                if (result !== 'Photo saved successfully') {
+                    console.error('Server error:', result);
                     alert('Failed to save photo on server.');
+                    photoGrid.removeChild(photoWrapper);
                 }
-            })
-            .catch(error => {
+            } catch (error) {
                 console.error('Error:', error);
                 photoGrid.removeChild(photoWrapper);
                 alert('Network error occurred while saving the photo.');
-            });
+            }
         }
 
         // Photo selection by clicking on the photo
@@ -214,33 +371,15 @@
             .catch(error => { console.error('Error:', error); });
         }
 
-        // Add selected photos to current session
-        function addSelectedPhotosToCurrentSession(sessionName) {
-            const form = event.target.closest('form');
-            const selectedPhotos = Array.from(form.querySelectorAll('.photo-checkbox:checked')).map(cb => cb.value);
-            if (selectedPhotos.length === 0) {
-                alert('Please select at least one photo.');
-                return;
-            }
-            const formData = new FormData();
-            selectedPhotos.forEach(photo => formData.append('selected_photos[]', photo));
-            formData.append('session_name', sessionName);
-            fetch('/add_photos_to_current_session', {
-                method: 'POST',
-                body: formData
-            })
-            .then(() => {
-                window.location.reload();
-            })
-            .catch(error => { console.error('Error:', error); });
-        }
-
         // Update the label of the file input when files are selected
         $('#fileUpload').on('change', function() {
             var fileName = $(this).val().split('\\').pop();
-            $(this).next('.custom-file-label').html(fileName);
+            if (fileName) {
+                $(this).next('.custom-file-label').html(fileName);
+            } else {
+                $(this).next('.custom-file-label').html('Choose photos to upload');
+            }
         });
-
     </script>
 </body>
 </html>
