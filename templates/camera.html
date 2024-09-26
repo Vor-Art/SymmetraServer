@@ -3,7 +3,6 @@
 <head>
     <title>Photo Manager</title>
     <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='style.css') }}">
-    <!-- Include Bootstrap CSS for better styling -->
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
 </head>
 <body>
@@ -21,6 +20,9 @@
             <form action="/new_session" method="post" class="form-inline my-2">
                 <input type="text" name="session_name" class="form-control mr-2" placeholder="Session Name">
                 <button type="submit" class="btn btn-primary">New Session</button>
+            </form>
+            <form action="/process_session" method="post">
+                <button type="submit" class="btn btn-primary mt-2">Process Session</button>
             </form>
         </div>
 
@@ -94,7 +96,7 @@
         </div>
 
         <!-- Hidden canvas for capturing photos -->
-        <canvas id="canvas" width="640" height="480" style="display:none;"></canvas>
+        <canvas id="canvas" style="display:none;"></canvas>
     </div>
 
     <!-- Include Bootstrap JS and dependencies -->
@@ -120,11 +122,9 @@
         // Initialize the application
         async function initCameraSelection() {
             try {
-                // Request camera permissions to ensure device labels are available
                 await navigator.mediaDevices.getUserMedia({ video: true });
                 await getCameras();
             } catch (err) {
-                console.error('Error accessing camera:', err);
                 alert('Camera access is required to use this application.');
                 cameraSelect.innerHTML = '<option value="">Camera access denied</option>';
                 qualitySelect.innerHTML = '<option value="">Cannot select quality without camera access</option>';
@@ -147,19 +147,12 @@
 
                 if (videoDevices.length === 0) {
                     cameraSelect.innerHTML = '<option value="">No cameras found</option>';
-                    qualitySelect.innerHTML = '<option value="">No cameras available</option>';
-                } else if (videoDevices.length === 1) {
-                    // If only one camera, select it automatically and populate quality
+                } else {
                     cameraSelect.selectedIndex = 0;
                     populateQualitySelect(videoDevices[0].deviceId);
-                } else {
-                    // Multiple cameras: prompt user to select
-                    qualitySelect.innerHTML = '<option value="">Select a camera first</option>';
                 }
             } catch (err) {
-                console.error('Error enumerating devices:', err);
                 cameraSelect.innerHTML = '<option value="">Error accessing cameras</option>';
-                qualitySelect.innerHTML = '<option value="">Cannot select quality</option>';
             }
         }
 
@@ -170,7 +163,6 @@
                 qualitySelect.innerHTML = '<option value="">Select a camera first</option>';
                 return;
             }
-
             populateQualitySelect(selectedCamera);
         });
 
@@ -187,28 +179,21 @@
 
         // Start Camera with selected settings
         startCameraButton.addEventListener('click', async () => {
-            if (currentStream) {
-                stopStream();
-            }
+            if (currentStream) stopStream();
 
             const selectedCamera = cameraSelect.value;
             const selectedQuality = qualitySelect.value;
-
             if (!selectedCamera) {
                 alert('Please select a camera.');
                 return;
             }
 
-            let constraints = {
-                video: {
-                    deviceId: { exact: selectedCamera }
-                }
-            };
-
+            let constraints = { video: { deviceId: { exact: selectedCamera } } };
             if (selectedQuality) {
                 const quality = JSON.parse(selectedQuality);
                 constraints.video.width = { exact: quality.width };
                 constraints.video.height = { exact: quality.height };
+                setCanvasDimensions(quality.width, quality.height);
             }
 
             try {
@@ -217,15 +202,12 @@
                 stopCameraButton.disabled = false;
                 startCameraButton.disabled = true;
             } catch (err) {
-                console.error('Error accessing camera:', err);
                 alert('Could not access the camera with the selected settings.');
             }
         });
 
         // Stop the Camera
-        stopCameraButton.addEventListener('click', () => {
-            stopStream();
-        });
+        stopCameraButton.addEventListener('click', stopStream);
 
         function stopStream() {
             if (currentStream) {
@@ -240,14 +222,19 @@
         // Refresh camera list when devices change
         navigator.mediaDevices.addEventListener('devicechange', getCameras);
 
-        // Initialize camera selection on page load
-        window.onload = initCameraSelection;
-
-        // Session Controls Variables
-        const startSessionBtn = document.getElementById('start-session');
-        const pauseSessionBtn = document.getElementById('pause-session');
+        // Canvas for capturing photos
         const canvas = document.getElementById('canvas');
         const context = canvas.getContext('2d');
+
+        // Set canvas dimensions based on selected quality
+        function setCanvasDimensions(width, height) {
+            canvas.width = height;
+            canvas.height = width;
+        }
+
+        // Start photo capture session
+        const startSessionBtn = document.getElementById('start-session');
+        const pauseSessionBtn = document.getElementById('pause-session');
         let autoCaptureInterval = null;
 
         startSessionBtn.addEventListener('click', () => {
@@ -261,13 +248,8 @@
         });
 
         function toggleSessionButtons(isSessionStarted) {
-            if (isSessionStarted) {
-                startSessionBtn.style.display = 'none';
-                pauseSessionBtn.style.display = 'block';
-            } else {
-                startSessionBtn.style.display = 'block';
-                pauseSessionBtn.style.display = 'none';
-            }
+            startSessionBtn.style.display = isSessionStarted ? 'none' : 'block';
+            pauseSessionBtn.style.display = isSessionStarted ? 'block' : 'none';
         }
 
         function startAutoCapture() {
@@ -292,6 +274,7 @@
                 return;
             }
 
+            // Capture the current video frame to canvas
             context.drawImage(video, 0, 0, canvas.width, canvas.height);
             const dataURL = canvas.toDataURL('image/png');
 
@@ -302,7 +285,7 @@
 
             const photoWrapper = document.createElement('div');
             photoWrapper.classList.add('photo-wrapper');
-            photoWrapper.dataset.filename = ''; // Since it's not saved yet
+            photoWrapper.dataset.filename = '';
             photoWrapper.appendChild(img);
 
             const checkbox = document.createElement('input');
@@ -323,24 +306,24 @@
                 });
                 const result = await response.text();
                 if (result !== 'Photo saved successfully') {
-                    console.error('Server error:', result);
                     alert('Failed to save photo on server.');
                     photoGrid.removeChild(photoWrapper);
                 }
             } catch (error) {
-                console.error('Error:', error);
-                photoGrid.removeChild(photoWrapper);
                 alert('Network error occurred while saving the photo.');
+                photoGrid.removeChild(photoWrapper);
             }
         }
 
-        // Photo selection by clicking on the photo
-        document.addEventListener('click', function(e) {
-            if (e.target.tagName === 'IMG' && e.target.parentElement.classList.contains('photo-wrapper')) {
-                const checkbox = e.target.parentElement.querySelector('.photo-checkbox');
-                checkbox.checked = !checkbox.checked;
-                e.target.parentElement.classList.toggle('selected', checkbox.checked);
-            }
+        // Initialize camera selection on page load
+        window.onload = () => {
+            initCameraSelection();
+        };
+
+        // File upload label update
+        $('#fileUpload').on('change', function() {
+            const fileName = $(this).val().split('\\').pop();
+            $(this).next('.custom-file-label').html(fileName || 'Choose photos to upload');
         });
 
         // Download selected photos
@@ -354,32 +337,19 @@
             const formData = new FormData();
             selectedPhotos.forEach(photo => formData.append('selected_photos[]', photo));
             formData.append('session_name', sessionName);
-            fetch('/download_photos', {
-                method: 'POST',
-                body: formData
-            })
-            .then(response => response.blob())
-            .then(blob => {
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `${sessionName}_photos.zip`;
-                document.body.appendChild(a);
-                a.click();
-                a.remove();
-            })
-            .catch(error => { console.error('Error:', error); });
+            fetch('/download_photos', { method: 'POST', body: formData })
+                .then(response => response.blob())
+                .then(blob => {
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `${sessionName}_photos.zip`;
+                    document.body.appendChild(a);
+                    a.click();
+                    a.remove();
+                })
+                .catch(error => { console.error('Error:', error); });
         }
-
-        // Update the label of the file input when files are selected
-        $('#fileUpload').on('change', function() {
-            var fileName = $(this).val().split('\\').pop();
-            if (fileName) {
-                $(this).next('.custom-file-label').html(fileName);
-            } else {
-                $(this).next('.custom-file-label').html('Choose photos to upload');
-            }
-        });
     </script>
 </body>
 </html>
