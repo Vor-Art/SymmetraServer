@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Model Viewer with Distance Measurement and Spheres</title>
+    <title>3D Model Viewer with Advanced Measurements</title>
     <style>
         body { margin: 0; position: relative; }
         canvas { display: block; }
@@ -28,11 +28,35 @@
             border-radius: 5px;
             display: none;
         }
+        .mode-selector {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            padding: 10px 20px;
+            background-color: #333;
+            color: #fff;
+            border-radius: 5px;
+        }
+        .mode-selector select {
+            padding: 5px;
+            border: none;
+            border-radius: 5px;
+            background-color: #444;
+            color: #fff;
+        }
     </style>
 </head>
 <body>
     <a href="/view_results" class="back-button">Back to Library</a>
     <div class="distance-info" id="distanceInfo">Distance: 0</div>
+    <div class="mode-selector">
+        <label for="mode">Select Mode:</label>
+        <select id="mode">
+            <option value="e">Euclidean Distance</option>
+            <option value="p">Path Distance</option>
+            <option value="a">Angle Measurement</option>
+        </select>
+    </div>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/OBJLoader.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
@@ -40,6 +64,8 @@
         let scene, camera, renderer, controls, raycaster, mouse;
         let points = [];
         let spheres = [];
+        let lines = [];
+        let mode = 'e'; // Default mode is Euclidean Distance
         let distanceInfo = document.getElementById('distanceInfo');
 
         function init() {
@@ -86,6 +112,10 @@
 
             window.addEventListener('resize', onWindowResize, false);
             window.addEventListener('click', onClick, false);
+            document.getElementById('mode').addEventListener('change', (event) => {
+                mode = event.target.value;
+                resetScene(); // Reset scene for new mode
+            });
 
             animate();
         }
@@ -110,25 +140,37 @@
             if (intersects.length > 0) {
                 const point = intersects[0].point;
 
-                if (spheres.length >= 2) {
-                    // Remove existing spheres if two are already present
-                    removeSpheres();
-                    points = [];  // Clear points array
-                    distanceInfo.style.display = 'none';  // Hide distance info
-                } else {
-                    // Add point and sphere at click location
-                    points.push(point);
-                    const sphere = createSphere(point);
-                    scene.add(sphere);
-                    spheres.push(sphere);
-
-                    // Calculate and display distance if two points are selected
+                if (mode === 'e' && points.length < 2) {
+                    // Euclidean Distance Mode
+                    addPointAndSphere(point);
                     if (points.length === 2) {
                         const distance = points[0].distanceTo(points[1]);
-                        displayDistance(distance);
+                        displayDistance(`Euclidean Distance: ${distance.toFixed(2)} units`);
+                    }
+                } else if (mode === 'p') {
+                    // Path Distance Mode
+                    addPointAndSphere(point);
+                    if (points.length > 1) {
+                        drawPath();
+                        const totalDistance = calculatePathDistance();
+                        displayDistance(`Path Distance: ${totalDistance.toFixed(2)} units`);
+                    }
+                } else if (mode === 'a' && points.length < 3) {
+                    // Angle Measurement Mode
+                    addPointAndSphere(point);
+                    if (points.length === 3) {
+                        const angle = calculateAngle(points[0], points[1], points[2]);
+                        displayDistance(`Angle: ${angle.toFixed(2)} degrees`);
                     }
                 }
             }
+        }
+
+        function addPointAndSphere(point) {
+            points.push(point);
+            const sphere = createSphere(point);
+            scene.add(sphere);
+            spheres.push(sphere);
         }
 
         function createSphere(position) {
@@ -144,9 +186,47 @@
             spheres = [];
         }
 
-        function displayDistance(distance) {
+        function removeLines() {
+            lines.forEach(line => scene.remove(line));
+            lines = [];
+        }
+
+        function resetScene() {
+            points = [];
+            removeSpheres();
+            removeLines();
+            distanceInfo.style.display = 'none';
+        }
+
+        function drawPath() {
+            removeLines(); // Clear previous lines
+            for (let i = 0; i < points.length - 1; i++) {
+                const material = new THREE.LineBasicMaterial({ color: 0x0000ff });
+                const geometry = new THREE.BufferGeometry().setFromPoints([points[i], points[i + 1]]);
+                const line = new THREE.Line(geometry, material);
+                scene.add(line);
+                lines.push(line);
+            }
+        }
+
+        function calculatePathDistance() {
+            let totalDistance = 0;
+            for (let i = 0; i < points.length - 1; i++) {
+                totalDistance += points[i].distanceTo(points[i + 1]);
+            }
+            return totalDistance;
+        }
+
+        function calculateAngle(p1, p2, p3) {
+            const v1 = p1.clone().sub(p2);
+            const v2 = p3.clone().sub(p2);
+            const angle = v1.angleTo(v2);
+            return THREE.MathUtils.radToDeg(angle); // Convert to degrees
+        }
+
+        function displayDistance(message) {
             distanceInfo.style.display = 'block';
-            distanceInfo.textContent = `Distance: ${distance.toFixed(2)} units`;
+            distanceInfo.textContent = message;
         }
 
         function animate() {
