@@ -28,34 +28,56 @@
             border-radius: 5px;
             display: none;
         }
-        .mode-selector {
+        .controls {
             position: absolute;
             bottom: 20px;
             left: 20px;
-            padding: 10px 20px;
+            padding: 10px;
             background-color: #333;
             color: #fff;
             border-radius: 5px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
         }
-        .mode-selector select {
+        .controls label {
+            margin-right: 5px;
+        }
+        .controls input, .controls select {
             padding: 5px;
             border: none;
             border-radius: 5px;
             background-color: #444;
             color: #fff;
+            margin-right: 10px;
+        }
+        .controls button {
+            padding: 5px 10px;
+            background-color: #ff4444;
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
         }
     </style>
 </head>
 <body>
     <a href="/view_results" class="back-button">Back to Library</a>
     <div class="distance-info" id="distanceInfo">Distance: 0</div>
-    <div class="mode-selector">
+    <div class="controls">
         <label for="mode">Select Mode:</label>
         <select id="mode">
             <option value="e">Euclidean Distance</option>
             <option value="p">Path Distance</option>
             <option value="a">Angle Measurement</option>
         </select>
+        <label for="scale">Scale (units to cm):</label>
+        <input type="number" id="scale" value="1" step="0.1" min="0.1" />
+        <label for="sphereSize">Sphere Size:</label>
+        <input type="number" id="sphereSize" value="0.01" step="0.005" min="0.001" />
+        <label for="segmentSize">Segment Size:</label>
+        <input type="number" id="segmentSize" value="0.01" step="0.005" min="0.001" />
+        <button id="resetButton">Reset</button>
     </div>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/OBJLoader.js"></script>
@@ -66,7 +88,14 @@
         let spheres = [];
         let lines = [];
         let mode = 'e'; // Default mode is Euclidean Distance
-        let distanceInfo = document.getElementById('distanceInfo');
+        let scale = 22; // Default scale factor for cm conversion
+        let sphereSize = 0.01; // Default sphere size
+        let segmentSize = 0.01; // Default segment size
+        const distanceInfo = document.getElementById('distanceInfo');
+        const scaleInput = document.getElementById('scale');
+        const sphereSizeInput = document.getElementById('sphereSize');
+        const segmentSizeInput = document.getElementById('segmentSize');
+        const resetButton = document.getElementById('resetButton');
 
         function init() {
             scene = new THREE.Scene();
@@ -116,6 +145,10 @@
                 mode = event.target.value;
                 resetScene(); // Reset scene for new mode
             });
+            scaleInput.addEventListener('change', () => scale = parseFloat(scaleInput.value));
+            sphereSizeInput.addEventListener('change', () => sphereSize = parseFloat(sphereSizeInput.value));
+            segmentSizeInput.addEventListener('change', () => segmentSize = parseFloat(segmentSizeInput.value));
+            resetButton.addEventListener('click', resetScene);
 
             animate();
         }
@@ -144,16 +177,17 @@
                     // Euclidean Distance Mode
                     addPointAndSphere(point);
                     if (points.length === 2) {
-                        const distance = points[0].distanceTo(points[1]);
-                        displayDistance(`Euclidean Distance: ${distance.toFixed(2)} units`);
+                        const distance = points[0].distanceTo(points[1]) * scale;
+                        displayDistance(`Euclidean Distance: ${distance.toFixed(2)} cm`);
+                        drawSegment(points[0], points[1]);
                     }
                 } else if (mode === 'p') {
                     // Path Distance Mode
                     addPointAndSphere(point);
                     if (points.length > 1) {
                         drawPath();
-                        const totalDistance = calculatePathDistance();
-                        displayDistance(`Path Distance: ${totalDistance.toFixed(2)} units`);
+                        const totalDistance = calculatePathDistance() * scale;
+                        displayDistance(`Path Distance: ${totalDistance.toFixed(2)} cm`);
                     }
                 } else if (mode === 'a' && points.length < 3) {
                     // Angle Measurement Mode
@@ -161,6 +195,8 @@
                     if (points.length === 3) {
                         const angle = calculateAngle(points[0], points[1], points[2]);
                         displayDistance(`Angle: ${angle.toFixed(2)} degrees`);
+                        drawSegment(points[0], points[1]);
+                        drawSegment(points[1], points[2]);
                     }
                 }
             }
@@ -174,7 +210,7 @@
         }
 
         function createSphere(position) {
-            const geometry = new THREE.SphereGeometry(0.01, 32, 32);
+            const geometry = new THREE.SphereGeometry(sphereSize, 32, 32);
             const material = new THREE.MeshBasicMaterial({ color: 0xff0000 });
             const sphere = new THREE.Mesh(geometry, material);
             sphere.position.copy(position);
@@ -201,12 +237,16 @@
         function drawPath() {
             removeLines(); // Clear previous lines
             for (let i = 0; i < points.length - 1; i++) {
-                const material = new THREE.LineBasicMaterial({ color: 0x0000ff });
-                const geometry = new THREE.BufferGeometry().setFromPoints([points[i], points[i + 1]]);
-                const line = new THREE.Line(geometry, material);
-                scene.add(line);
-                lines.push(line);
+                drawSegment(points[i], points[i + 1]);
             }
+        }
+
+        function drawSegment(start, end) {
+            const material = new THREE.LineBasicMaterial({ color: 0xff0000, linewidth: segmentSize });
+            const geometry = new THREE.BufferGeometry().setFromPoints([start, end]);
+            const line = new THREE.Line(geometry, material);
+            scene.add(line);
+            lines.push(line);
         }
 
         function calculatePathDistance() {
