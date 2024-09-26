@@ -10,6 +10,9 @@
         <!-- Header Section -->
         <div class="d-flex justify-content-between align-items-center my-3">
             <h1>Photo Manager</h1>
+            <form action="/observe_the_models" method="post">
+                <button type="submit" class="btn btn-info">Proceed to the models</button>
+            </form>
             <button class="btn btn-danger" onclick="window.location.href='/logout'">Logout</button>
         </div>
         <hr>
@@ -23,10 +26,6 @@
             </form>
             <!-- Updated Process Session Button and Progress Bar -->
             <button id="process-session-button" class="btn btn-primary ml-2">Process Session</button>
-
-            <form action="/observe_the_models" method="post" class="d-inline-block ml-2">
-                <button type="submit" class="btn btn-primary">Proceed to the models</button>
-            </form>
             
             <div id="upload-progress" class="progress ml-2" style="display:none; width: 200px;">
                 <div id="upload-progress-bar" class="progress-bar" role="progressbar" style="width: 0%;" aria-valuemin="0" aria-valuemax="100"></div>

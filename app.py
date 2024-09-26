@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, session, send_from_directory, flash
+from flask import Flask, render_template, request, redirect, url_for, session, send_from_directory, flash, abort
 import os
 import base64
 from functools import wraps
@@ -13,8 +13,19 @@ app.permanent_session_lifetime = timedelta(minutes=30)
 
 # Configuration for file uploads
 UPLOAD_FOLDER = 'photos'
+MODEL_FOLDER = 'models'
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+app.config['MODEL_FOLDER'] = MODEL_FOLDER
+
+def get_model_directories(user_name):
+    model_dirs = []
+    model_path = os.path.join(app.root_path, MODEL_FOLDER, user_name)
+    for model_name in os.listdir(model_path):
+        model_dir = os.path.join(model_path, model_name)
+        if os.path.exists(os.path.join(model_dir, 'model.glb')):
+            model_dirs.append(model_name)
+    return model_dirs
 
 
 def allowed_file(filename):
@@ -31,7 +42,19 @@ def login_required(f):
 
 @app.route('/')
 def index():
-    return redirect(url_for('login'))
+    # return render_template('index.html')
+    # return redirect(url_for('login'))
+    session['logged_in'] = True
+    session['username'] = "preview"
+    session_date = datetime.now().strftime('%Y%m%d_%H%M%S')
+    session['photo_session_date'] = session_date
+    session_name = request.form.get('session_name', '')
+    if not session_name:
+        session_name = f"Session_{session_date}"
+    else:
+        session_name = f"{session_name}_{session_date}"
+    session['photo_session_name'] = session_name
+    return redirect(url_for('camera'))
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -191,5 +214,31 @@ def uploaded_file(username, session_name, filename):
     directory = os.path.join(UPLOAD_FOLDER, username, session_name)
     return send_from_directory(directory, filename)
 
+@app.route('/observe_the_models', methods=['POST'])
+@login_required
+def observe_the_models():
+    return redirect(url_for('view_results'))
+
+# from flask import send_from_directory
+
+# Serve images from the 'models/preview' directory
+@app.route('/models/preview/<path:filename>')
+def serve_preview_image(filename):
+    return send_from_directory('models/preview', filename)
+
+@app.route('/view_results')
+@login_required
+def view_results():
+    username = session['username']
+    sessions = get_model_directories(username)
+    return render_template('intermediate.html', username=username, sessions=sessions)
+
+@app.route('/view/<model_name>')
+def view_model(model_name):
+    model_path = os.path.join(MODELS_PATH, model_name, 'model.glb')
+    if not os.path.exists(model_path):
+        return "Model not found", 404
+    return render_template('view_image.html', model_name=model_name)
+
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', ssl_context=('cert.pem', 'key.pem'))
+    app.run(host='0.0.0.0', ssl_context=('cert.pem', 'key.pem'), debug=True)
