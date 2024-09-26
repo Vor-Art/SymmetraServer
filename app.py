@@ -23,7 +23,7 @@ def get_model_directories(user_name):
     model_path = os.path.join(app.root_path, MODEL_FOLDER, user_name)
     for model_name in os.listdir(model_path):
         model_dir = os.path.join(model_path, model_name)
-        if os.path.exists(os.path.join(model_dir, 'model.glb')):
+        if os.path.exists(os.path.join(model_dir, 'model.obj')):
             model_dirs.append(model_name)
     return model_dirs
 
@@ -235,10 +235,21 @@ def view_results():
 
 @app.route('/view/<model_name>')
 def view_model(model_name):
-    model_path = os.path.join(MODELS_PATH, model_name, 'model.glb')
-    if not os.path.exists(model_path):
-        return "Model not found", 404
-    return render_template('view_image.html', model_name=model_name)
+    username = session['username']
+    print(f"{model_name=} {username=}")
+    print(f"/models/{username}/{model_name}/model.obj")
+    return render_template('view_image.html', username=username, model_name=model_name)
+
+@app.route('/compare', methods=['POST'])
+def compare():
+    model1 = request.form.get('model1')
+    model2 = request.form.get('model2')
+    if not model1 or not model2 or model1 == model2:
+        return redirect(url_for('intermediate'))
+    model1_path = os.path.join(model1, 'model.obj')
+    model2_path = os.path.join(model2, 'model.obj')
+    return render_template('compare.html', model1=model1_path, model2=model2_path)
+
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', ssl_context=('cert.pem', 'key.pem'), debug=True)
