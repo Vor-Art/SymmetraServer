@@ -236,9 +236,17 @@ def view_results():
 @app.route('/view/<model_name>')
 def view_model(model_name):
     username = session['username']
-    print(f"{model_name=} {username=}")
-    print(f"/models/{username}/{model_name}/model.obj")
-    return render_template('view_image.html', username=username, model_name=model_name)
+    scale_value = 1.0  # Default value in case of an issue reading the file
+    try:
+        with open(f"models/{username}/{model_name}/scale.txt", 'r') as file:
+            scale_value = float(file.read().strip())
+    except (FileNotFoundError, ValueError) as e:
+        print(f"Error reading scale value: {e}, try default")
+
+    print(f"{model_name=} {username=}, {scale_value=}")
+    print(f"models/{username}/{model_name}/model.obj")
+
+    return render_template('view_image.html', username=username, model_name=model_name, scale_value=scale_value)
 
 @app.route('/compare', methods=['POST'])
 def compare():
