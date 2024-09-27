@@ -97,6 +97,10 @@
         let scale = 22; // Default scale factor for cm conversion
         let sphereSize = 0.01; // Default sphere size
         let segmentSize = 1; // Default segment size
+
+        const SAMPLING_STEP = 150;
+        const MAX_ITERATION = 100;
+
         const distanceInfo = document.getElementById('distanceInfo');
         const scaleInput = document.getElementById('scale');
         const sphereSizeInput = document.getElementById('sphereSize');
@@ -149,7 +153,7 @@
 
             controls = new THREE.OrbitControls(camera, renderer.domElement);
             controls.enableDamping = true;
-            controls.dampingFactor = 0.25;
+            controls.dampingFactor = 0.9;
             controls.enableRotate = true;
             controls.minDistance = 0;
             controls.maxDistance = 7;
@@ -322,7 +326,7 @@
             distanceInfo.textContent = message;
         }
         function preprocessModel() {
-            const samplingStep = 100; // Sample every 100th vertex (adjust for performance)
+            const samplingStep = SAMPLING_STEP; // Sample every 100th vertex (adjust for performance)
             const neighborThreshold = 0.2; // Distance threshold for neighbors (adjust based on model size)
             const maxNeighbors = 5; // Limit the number of neighbors to avoid too many connections
 
@@ -411,7 +415,7 @@
             const gScore = new Map();
             const fScore = new Map();
 
-            const maxIterations = 1000; // Set a max number of iterations to prevent infinite loops
+            const maxIterations = MAX_ITERATION; // Set a max number of iterations to prevent infinite loops
             let iterationCount = 0;
 
             gScore.set(startIdx, 0);

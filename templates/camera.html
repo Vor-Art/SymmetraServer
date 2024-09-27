@@ -321,6 +321,21 @@
             sendPhotos();
         });
 
+        // Function to call the Python function via AJAX
+        function runPythonFunction() {
+            $.ajax({
+                url: '/run_python_function',
+                method: 'POST',
+                success: function(response) {
+                    console.log(response.status);
+                },
+                error: function(xhr, status, error) {
+                    console.error("Error calling Python function:", error);
+                }
+            });
+        }
+
+
         function sendPhotos() {
             const processButton = document.getElementById('process-session-button');
             processButton.disabled = true;
@@ -350,6 +365,7 @@
 
                 if (xhr.status === 200) {
                     alert('Photos uploaded successfully.');
+                    runPythonFunction(); // Call the Python function after the alert
                     capturedPhotos = [];
                     location.reload();
                 } else {

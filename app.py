@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, session, send_from_directory, flash, abort
+from flask import Flask, render_template, request, redirect, url_for, session, send_from_directory, flash, abort, jsonify
 import os
 import base64
 from functools import wraps
@@ -249,6 +249,18 @@ def compare():
     model1_path = os.path.join(model1, 'model.obj')
     model2_path = os.path.join(model2, 'model.obj')
     return render_template('compare.html', model1=model1_path, model2=model2_path)
+
+@app.route('/run_python_function', methods=['POST'])
+def run_python_function():
+    my_python_function()
+    return jsonify({'status': 'Function executed successfully'})
+
+def my_python_function():
+    # Example Python function logic
+    print("Python function executed!")
+    print("Python function executed!")
+    print("Python function executed!")
+    print("Python function executed!")
 
 
 if __name__ == '__main__':
