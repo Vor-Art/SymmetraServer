@@ -305,15 +305,12 @@
 
         function preprocessModel() {
             // Adjustable parameters
-            const samplingStep = 1000; // Sample every 1000th vertex (adjust for performance)
+            const samplingStep = 200; // Sample every 200th vertex (adjust for performance)
             const neighborThreshold = 0.2; // Distance threshold for neighbors (adjust based on model size)
             const maxNeighbors = 5; // Limit the number of neighbors to avoid too many connections
 
-            console.log(`Starting model preprocessing with samplingStep: ${samplingStep}, neighborThreshold: ${neighborThreshold}, maxNeighbors: ${maxNeighbors}`);
-
             model.traverse(child => {
                 if (child.isMesh) {
-                    console.log(`Processing mesh: ${child.name}`);
                     const vertices = child.geometry.attributes.position.array;
                     // Sample vertices with a step size to reduce computation
                     for (let i = 0; i < vertices.length; i += 3 * samplingStep) {
@@ -321,7 +318,6 @@
                         sampledVertices.push(vertex);
                         vertexMap.set(sampledVertices.length - 1, vertex);
                     }
-                    console.log(`Sampled ${sampledVertices.length} vertices from mesh: ${child.name}`);
                 }
             });
 
@@ -331,15 +327,12 @@
             sampledVertices.forEach((vertex, index) => {
                 const neighbors = getVertexNeighbors(vertex, index, neighborThreshold, maxNeighbors);
                 neighborsMap.set(index, neighbors);
-                console.log(`Vertex ${index}: found ${neighbors.length} neighbors, neighbors: ${neighbors}`);
             });
 
-            console.log('Neighbors precomputed for all sampled vertices');
         }
 
         // Optimized function to get neighbors of a vertex based on proximity in sampled vertices
         function getVertexNeighbors(vertex, currentIndex, threshold, maxNeighbors) {
-            console.log(`Finding neighbors for vertex ${currentIndex} with threshold ${threshold} and maxNeighbors ${maxNeighbors}`);
             const neighbors = [];
             sampledVertices.forEach((otherVertex, index) => {
                 if (index !== currentIndex) { // Exclude the vertex itself
@@ -347,13 +340,11 @@
                     if (distance < threshold) {
                         neighbors.push(index);
                         if (neighbors.length >= maxNeighbors) {
-                            console.log(`Max neighbors reached for vertex ${currentIndex}`);
                             return neighbors; // Limit the number of neighbors
                         }
                     }
                 }
             });
-            console.log(`Vertex ${currentIndex}: total neighbors found = ${neighbors.length}`);
             return neighbors;
         }
 
@@ -369,7 +360,6 @@
             // Calculate path between the closest vertices
             const path = aStarPathfinding(startIdx, endIdx);
             if (path.length > 0) {
-                console.log(`Path found with ${path.length} vertices`);
                 // Get path points in 3D space and draw them
                 const pathPoints = path.map(index => vertexMap.get(index));
                 drawSurfacePath(pathPoints);
@@ -388,17 +378,14 @@
 
         // Function to draw the calculated surface path
         function drawSurfacePath(pathPoints) {
-            console.log(`Drawing surface path with ${pathPoints.length} points`);
             removeLines(); // Remove previous paths
             for (let i = 0; i < pathPoints.length - 1; i++) {
                 drawSegment(pathPoints[i], pathPoints[i + 1]);
-                console.log(`Drawing segment from ${pathPoints[i].toArray()} to ${pathPoints[i + 1].toArray()}`);
             }
         }
 
         // Find the closest sampled vertex index to a given point
         function findClosestSampledVertex(point) {
-            console.log(`Finding closest sampled vertex to point ${point.toArray()}`);
             let closestIndex = -1;
             let closestDistance = Infinity;
             sampledVertices.forEach((vertex, index) => {
@@ -408,7 +395,6 @@
                     closestIndex = index;
                 }
             });
-            console.log(`Closest vertex index: ${closestIndex}, distance: ${closestDistance}`);
             return closestIndex;
         }
 
@@ -427,25 +413,20 @@
                 let current = getLowestScoreNode(openSet, fScore);
 
                 if (current === endIdx) {
-                    console.log(`Reached end vertex: ${endIdx}`);
                     return reconstructPath(cameFrom, current);
                 }
 
                 openSet.delete(current);
-                console.log(`Processing vertex ${current}, neighbors: ${neighborsMap.get(current)}`);
-
                 const neighbors = neighborsMap.get(current);
                 for (const neighbor of neighbors) {
                     const tentativeGScore = gScore.get(current) + vertexMap.get(current).distanceTo(vertexMap.get(neighbor));
                     
                     // Check for cycles before updating cameFrom
                     if (cameFrom.has(neighbor) && cameFrom.get(neighbor) === current) {
-                        console.log(`Skipping update for vertex ${neighbor} to avoid cycle with ${current}`);
                         continue;
                     }
                     
                     if (tentativeGScore < (gScore.get(neighbor) || Infinity)) {
-                        console.log(`Updating vertex ${neighbor}: came from ${current}, tentativeGScore = ${tentativeGScore}`);
                         cameFrom.set(neighbor, current);
                         gScore.set(neighbor, tentativeGScore);
                         fScore.set(neighbor, tentativeGScore + heuristicCostEstimate(neighbor, endIdx));
@@ -454,29 +435,24 @@
                 }
             }
 
-            console.log('No path found');
             return []; // No path found
         }
 
         // Reconstruct the path from the cameFrom map
         function reconstructPath(cameFrom, current) {
-            console.log(`Reconstructing path starting from vertex ${current}`);
             const totalPath = [current];
             const visitedNodes = new Set(); // Keep track of visited nodes
 
             while (cameFrom.has(current)) {
                 if (visitedNodes.has(current)) { // Cycle detected
-                    console.log(`Cycle detected at vertex ${current}. Breaking the loop.`);
                     break;
                 }
 
                 visitedNodes.add(current);
                 current = cameFrom.get(current);
                 totalPath.unshift(current);
-                console.log(`Step back to vertex ${current}`);
             }
 
-            console.log(`Path reconstructed: ${totalPath}`);
             return totalPath;
         }
 
@@ -491,19 +467,14 @@
                     lowestNode = node;
                 }
             });
-            console.log(`Lowest score node: ${lowestNode}, score: ${lowestScore}`);
             return lowestNode;
         }
 
         // Heuristic function for A* pathfinding (Euclidean distance)
         function heuristicCostEstimate(startIdx, endIdx) {
             const distance = vertexMap.get(startIdx).distanceTo(vertexMap.get(endIdx));
-            console.log(`Heuristic cost estimate from ${startIdx} to ${endIdx}: ${distance}`);
             return distance;
         }
-
-
-
 
         function animate() {
             requestAnimationFrame(animate);
