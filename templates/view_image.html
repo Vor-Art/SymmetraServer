@@ -71,6 +71,7 @@
             <option value="p">Path Distance</option>
             <option value="a">Angle Measurement</option>
             <option value="s">Surface Distance</option>
+            <option value="d">Multiple Surface Distance</option>
         </select>
         <label for="scale">Scale (units to cm):</label>
         <input type="number" id="scale" value="0" step="0.1" min="0.1" />
@@ -205,7 +206,7 @@
                         addPointAndSphere(point);
                     } 
                 } else if (mode === 'p') {
-                    // Path Distance Mode
+                    // Path Euclidean Distance Mode
                     addPointAndSphere(point);
                     if (points.length > 1) {
                         drawPath();
@@ -226,11 +227,29 @@
                         resetScene();
                         addPointAndSphere(point);
                     }
-                } else if (mode === 's' && points.length < 2) {
+                } else if (mode === 's') {
                     // Surface Distance Mode
+                    if (points.length < 1) {
+                        addPointAndSphere(point);
+                    } else if (points.length === 1) {
+                        addPointAndSphere(point);
+                        surfaceDistance = calculateSurfaceDistance(points[0], points[1]) * scale;
+                        displayDistance(`Surface Distance: ${surfaceDistance.toFixed(2)} cm`);
+                    } else if (points.length === 2){
+                        resetScene();
+                        addPointAndSphere(point);
+                    }
+                } else if (mode === 'd') {
+                    // Multiple Surface Distance Distance Mode
                     addPointAndSphere(point);
-                    if (points.length === 2) {
-                        calculateSurfaceDistance(points[0], points[1]);
+                    if (points.length > 1) {
+                        removeLines(); // Clear previous lines
+                        totalSurfaceDistance = 0;
+                        for (let i = 0; i < points.length - 1; i++) {
+                            totalSurfaceDistance += calculateSurfaceDistance(points[i], points[i + 1]);
+                        }
+                        totalSurfaceDistance = totalSurfaceDistance * scale;
+                        displayDistance(`Multiple Surface Distance: ${totalSurfaceDistance.toFixed(2)} cm`);
                     }
                 }
             }
@@ -302,17 +321,14 @@
             distanceInfo.style.display = 'block';
             distanceInfo.textContent = message;
         }
-
         function preprocessModel() {
-            // Adjustable parameters
-            const samplingStep = 200; // Sample every 200th vertex (adjust for performance)
+            const samplingStep = 100; // Sample every 100th vertex (adjust for performance)
             const neighborThreshold = 0.2; // Distance threshold for neighbors (adjust based on model size)
             const maxNeighbors = 5; // Limit the number of neighbors to avoid too many connections
 
             model.traverse(child => {
                 if (child.isMesh) {
                     const vertices = child.geometry.attributes.position.array;
-                    // Sample vertices with a step size to reduce computation
                     for (let i = 0; i < vertices.length; i += 3 * samplingStep) {
                         const vertex = new THREE.Vector3(vertices[i], vertices[i + 1], vertices[i + 2]);
                         sampledVertices.push(vertex);
@@ -323,7 +339,6 @@
 
             console.log(`Total sampled vertices: ${sampledVertices.length}`);
 
-            // Precompute neighbors for sampled vertices
             sampledVertices.forEach((vertex, index) => {
                 const neighbors = getVertexNeighbors(vertex, index, neighborThreshold, maxNeighbors);
                 neighborsMap.set(index, neighbors);
@@ -331,16 +346,15 @@
 
         }
 
-        // Optimized function to get neighbors of a vertex based on proximity in sampled vertices
         function getVertexNeighbors(vertex, currentIndex, threshold, maxNeighbors) {
             const neighbors = [];
             sampledVertices.forEach((otherVertex, index) => {
-                if (index !== currentIndex) { // Exclude the vertex itself
+                if (index !== currentIndex) {
                     const distance = vertex.distanceTo(otherVertex);
                     if (distance < threshold) {
                         neighbors.push(index);
                         if (neighbors.length >= maxNeighbors) {
-                            return neighbors; // Limit the number of neighbors
+                            return neighbors;
                         }
                     }
                 }
@@ -348,43 +362,35 @@
             return neighbors;
         }
 
-        // New function to calculate surface distance using a pathfinding algorithm
         function calculateSurfaceDistance(start, end) {
             console.log(`Calculating surface distance from start ${start.toArray()} to end ${end.toArray()}`);
-            // Find closest sampled vertices on the model
             const startIdx = findClosestSampledVertex(start);
             const endIdx = findClosestSampledVertex(end);
 
             console.log(`Closest vertex to start: ${startIdx}, closest vertex to end: ${endIdx}`);
 
-            // Calculate path between the closest vertices
             const path = aStarPathfinding(startIdx, endIdx);
             if (path.length > 0) {
-                // Get path points in 3D space and draw them
                 const pathPoints = path.map(index => vertexMap.get(index));
                 drawSurfacePath(pathPoints);
 
-                // Calculate total path distance
                 let surfaceDistance = 0;
                 for (let i = 0; i < pathPoints.length - 1; i++) {
                     surfaceDistance += pathPoints[i].distanceTo(pathPoints[i + 1]);
                 }
-                displayDistance(`Surface Distance: ${(surfaceDistance * scale).toFixed(2)} cm`);
-                console.log(`Total surface distance: ${(surfaceDistance * scale).toFixed(2)} cm`);
+                return surfaceDistance
             } else {
                 console.log('No path found between the two points.');
+                return 0
             }
         }
 
-        // Function to draw the calculated surface path
         function drawSurfacePath(pathPoints) {
-            removeLines(); // Remove previous paths
             for (let i = 0; i < pathPoints.length - 1; i++) {
                 drawSegment(pathPoints[i], pathPoints[i + 1]);
             }
         }
 
-        // Find the closest sampled vertex index to a given point
         function findClosestSampledVertex(point) {
             let closestIndex = -1;
             let closestDistance = Infinity;
@@ -398,7 +404,6 @@
             return closestIndex;
         }
 
-        // A* Pathfinding algorithm optimized for sampled vertices
         function aStarPathfinding(startIdx, endIdx) {
             console.log(`Starting A* pathfinding from ${startIdx} to ${endIdx}`);
             const openSet = new Set([startIdx]);
@@ -406,10 +411,18 @@
             const gScore = new Map();
             const fScore = new Map();
 
+            const maxIterations = 1000; // Set a max number of iterations to prevent infinite loops
+            let iterationCount = 0;
+
             gScore.set(startIdx, 0);
             fScore.set(startIdx, heuristicCostEstimate(startIdx, endIdx));
 
             while (openSet.size > 0) {
+                if (iterationCount > maxIterations) {
+                    break;
+                }
+                iterationCount++;
+
                 let current = getLowestScoreNode(openSet, fScore);
 
                 if (current === endIdx) {
@@ -420,12 +433,11 @@
                 const neighbors = neighborsMap.get(current);
                 for (const neighbor of neighbors) {
                     const tentativeGScore = gScore.get(current) + vertexMap.get(current).distanceTo(vertexMap.get(neighbor));
-                    
-                    // Check for cycles before updating cameFrom
+
                     if (cameFrom.has(neighbor) && cameFrom.get(neighbor) === current) {
                         continue;
                     }
-                    
+
                     if (tentativeGScore < (gScore.get(neighbor) || Infinity)) {
                         cameFrom.set(neighbor, current);
                         gScore.set(neighbor, tentativeGScore);
@@ -435,16 +447,15 @@
                 }
             }
 
-            return []; // No path found
+            return [];
         }
 
-        // Reconstruct the path from the cameFrom map
         function reconstructPath(cameFrom, current) {
             const totalPath = [current];
-            const visitedNodes = new Set(); // Keep track of visited nodes
+            const visitedNodes = new Set();
 
             while (cameFrom.has(current)) {
-                if (visitedNodes.has(current)) { // Cycle detected
+                if (visitedNodes.has(current)) {
                     break;
                 }
 
@@ -456,7 +467,6 @@
             return totalPath;
         }
 
-        // Get the node with the lowest score in fScore map
         function getLowestScoreNode(set, fScore) {
             let lowestNode = null;
             let lowestScore = Infinity;
@@ -470,7 +480,6 @@
             return lowestNode;
         }
 
-        // Heuristic function for A* pathfinding (Euclidean distance)
         function heuristicCostEstimate(startIdx, endIdx) {
             const distance = vertexMap.get(startIdx).distanceTo(vertexMap.get(endIdx));
             return distance;
